@@ -1,5 +1,3 @@
-// solvers.js
-
 // Calculate attacking pairs for Hill Climbing
 function calculateAttackingPairs(state) {
   const n = state.length;
@@ -22,7 +20,7 @@ function generateRandomBoard(n) {
 }
 
 // Hill Climbing with Random Restarts
-async function solveHillClimbing(
+export async function solveHillClimbing(
   n,
   maxRestarts = 100,
   maxStepsPerRun = 1000,
@@ -74,7 +72,7 @@ async function solveHillClimbing(
       }
 
       if (minNeighborAttacks >= currentAttacks) {
-        break; // Local minimum — restart
+        break; // Local minimum, restart
       }
 
       currentState = bestNeighbor;
@@ -96,20 +94,75 @@ async function solveHillClimbing(
 }
 
 // Check if placing a queen is safe
+// Check if placing a queen is safe
 function isSafe(board, row, col) {
   for (let r = 0; r < row; r++) {
-    if (board[r] === col) return false;
-    if (Math.abs(board[r] - col) === Math.abs(r - row)) return false;
+    const existingCol = board[r];
+    // Check Column Conflict
+    if (existingCol === col) return false;
+    // Check Diagonal Conflict
+    if (Math.abs(existingCol - col) === Math.abs(r - row)) return false;
   }
   return true;
 }
 
-// CSP Backtracking recursive solver
-async function solveCSPRecursive(board, row, n, stats, onStep, controls) {
+async function solveCSPRecursive(
+  board,
+  row,
+  n,
+  stats,
+  onStep,
+  controls,
+  initialPositions
+) {
   stats.iterations++;
 
-  if (row === n) return true;
+  if (row === n) {
+    return true; // Solution found
+  }
 
+  // --- FIX STARTS HERE ---
+  // Handle rows that have pre-placed queens
+  if (initialPositions && initialPositions.has(row)) {
+    const fixedCol = initialPositions.get(row);
+
+    // 1. CRITICAL: Check if the pre-placed queen is actually valid 
+    // against the board built so far.
+    if (!isSafe(board, row, fixedCol)) {
+      return false; // The user's initial setup (or previous path) makes this impossible
+    }
+
+    // 2. Add the fixed queen to the board so subsequent rows know it exists
+    board.push(fixedCol);
+
+    // Optional: Visualize this step (so the user sees the fixed queen "lock in")
+    if (onStep && stats.iterations % 10 === 0) {
+        await onStep([...board], () => controls?.paused || false);
+    }
+
+    // 3. Recurse to the next row
+    const result = await solveCSPRecursive(
+      board,
+      row + 1,
+      n,
+      stats,
+      onStep,
+      controls,
+      initialPositions
+    );
+
+    // 4. If solution not found, we must POP this fixed queen to restore 
+    // the board state for the previous caller. 
+    // If solution WAS found, we leave it so the final solution is complete.
+    if (!result) {
+      board.pop();
+    }
+
+    return result;
+  }
+  // --- FIX ENDS HERE ---
+
+  
   for (let col = 0; col < n; col++) {
     if (isSafe(board, row, col)) {
       board.push(col);
@@ -118,7 +171,17 @@ async function solveCSPRecursive(board, row, n, stats, onStep, controls) {
         await onStep([...board], () => controls?.paused || false);
       }
 
-      if (await solveCSPRecursive(board, row + 1, n, stats, onStep, controls)) {
+      if (
+        await solveCSPRecursive(
+          board,
+          row + 1,
+          n,
+          stats,
+          onStep,
+          controls,
+          initialPositions
+        )
+      ) {
         return true;
       }
 
@@ -129,24 +192,63 @@ async function solveCSPRecursive(board, row, n, stats, onStep, controls) {
   return false;
 }
 
-// CSP Backtracking wrapper
-async function solveCSPBacktracking(
+// CSP Backtracking
+export async function solveCSPBacktracking(
   n,
   onStep,
-  controls
+  controls,
+  initialPositions
 ) {
   const startTime = performance.now();
   const board = [];
   const stats = { iterations: 0 };
 
-  const hasSolution = await solveCSPRecursive(
-    board,
-    0,
-    n,
-    stats,
-    onStep,
-    controls
-  );
+  // Optimization: We can pre-fill the board with initial positions 
+  // ONLY if they are continuous from row 0. 
+  // However, to be safe and let the recursive logic handle validation, 
+  // it is often safer to start with an empty board or only fill up to the first gap.
+  
+  const initialPosMap = initialPositions || new Map();
+  
+  // We fill until we hit a gap. The recursive function will handle 
+  // picking up the specific fixed positions later down the tree.
+  for (let row = 0; row < n; row++) {
+    if (initialPosMap.has(row)) {
+      board.push(initialPosMap.get(row));
+    } else {
+      break; 
+    }
+  }
+
+  // We must validate the initial chunk we just pushed. 
+  // If the user put queens at (0,0) and (1,1) [diagonal attack], 
+  // we need to catch it before starting.
+  let isValidStart = true;
+  for(let r = 0; r < board.length; r++) {
+      // Check this queen against previous ones in the partial board
+      if(!isSafe(board, r, board[r])) { 
+          // Note: isSafe checks board[0...r-1] against r. 
+          // However, isSafe implementation reads from 'board'. 
+          // Since 'board' is fully filled up to the current point, 
+          // we need to be careful not to check a row against itself.
+          // The existing isSafe implementation loops `r < row`, so it is safe.
+          isValidStart = false; 
+          break; 
+      }
+  }
+
+  let hasSolution = false;
+  if (isValidStart) {
+      hasSolution = await solveCSPRecursive(
+        board,
+        board.length, // Start after the pre-filled chunk
+        n,
+        stats,
+        onStep,
+        controls,
+        initialPosMap
+      );
+  }
 
   const endTime = performance.now();
 
@@ -157,9 +259,3 @@ async function solveCSPBacktracking(
     success: hasSolution,
   };
 }
-
-// Export for JS usage
-export {
-  solveHillClimbing,
-  solveCSPBacktracking
-};

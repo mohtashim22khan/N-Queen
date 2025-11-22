@@ -18,12 +18,13 @@ const Index = () => {
   const [solution, setSolution] = useState(null);
   const [result, setResult] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [stepCount,setStepCount] = useState(0)
   const [isPaused, setIsPaused] = useState(false);
   const [speed, setSpeed] = useState(50);
   const [stepMode, setStepMode] = useState(false);
+  const [stepCount, setStepCount] = useState(0);
+  const [placementMode, setPlacementMode] = useState(false);
+  const [initialPositions, setInitialPositions] = useState(new Map());
   const [history, setHistory] = useState([]);
-
   const controlsRef = useRef({ paused: false, speed: 50, stepMode: false });
   const stepResolveRef = useRef(null);
 
@@ -31,32 +32,34 @@ const Index = () => {
     setIsRunning(true);
     setIsPaused(false);
     setSolution(null);
-    setStepCount(0);
     setResult(null);
-
+    setStepCount(0);
     controlsRef.current = { paused: false, speed, stepMode };
 
     try {
       let solverResult;
 
-      const stepCallback = async (state) => {
+      const stepCallback = async (state, shouldPause) => {
         setSolution([...state]);
-        setStepCount(prev => prev+1)
+        setStepCount((prev) => prev + 1);
 
+        // Apply speed delay (skip in step mode)
         if (!controlsRef.current.stepMode) {
           const delay = 100 - speed;
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
 
+        // Handle step mode - always pause at each step
         if (controlsRef.current.stepMode) {
           setIsPaused(true);
           controlsRef.current.paused = true;
-          await new Promise(resolve => {
+          await new Promise((resolve) => {
             stepResolveRef.current = resolve;
           });
         } else {
+          // Handle regular pause
           while (controlsRef.current.paused) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
           }
         }
       };
@@ -73,13 +76,15 @@ const Index = () => {
         solverResult = await solveCSPBacktracking(
           boardSize,
           stepCallback,
-          controlsRef.current
+          controlsRef.current,
+          initialPositions.size > 0 ? initialPositions : undefined
         );
       }
 
       setResult(solverResult);
       setSolution(solverResult.solution);
 
+      // Add to history
       const historyEntry = {
         id: Date.now().toString(),
         algorithm,
@@ -87,13 +92,15 @@ const Index = () => {
         result: solverResult,
         timestamp: new Date(),
       };
-
-      setHistory(prev => [historyEntry, ...prev].slice(0, 20));
+      setHistory((prev) => [historyEntry, ...prev].slice(0, 20));
 
       if (solverResult.success) {
-        toast.success(`Solution found in ${solverResult.iterations} iterations!`, {
-          description: `Completed in ${solverResult.time.toFixed(3)} seconds`,
-        });
+        toast.success(
+          `Solution found in ${solverResult.iterations} iterations!`,
+          {
+            description: `Completed in ${solverResult.time.toFixed(3)} seconds`,
+          }
+        );
       } else {
         toast.error("No solution found", {
           description: "Try using a different algorithm or board size",
@@ -130,6 +137,53 @@ const Index = () => {
     toast.info("Loaded solution from history");
   };
 
+  // Updated function based on the diff image
+  const handleSquareClick = (row, col) => {
+    if (!placementMode) return;
+
+    setInitialPositions((prev) => {
+      const newPositions = new Map(prev);
+
+      // If clicking on same position, remove it
+      if (newPositions.get(row) === col) {
+        newPositions.delete(row);
+        return newPositions;
+      }
+
+      // Check for conflicts with existing queens
+      for (const [existingRow, existingCol] of newPositions.entries()) {
+        // Same column check
+        if (existingCol === col) {
+          toast.error("Invalid placement: Queen already in this column");
+          return prev;
+        }
+
+        // Diagonal check
+        if (Math.abs(existingRow - row) === Math.abs(existingCol - col)) {
+          toast.error("Invalid placement: Queens attack each other diagonally");
+          return prev;
+        }
+      }
+
+      // Valid placement
+      newPositions.set(row, col);
+      return newPositions;
+    });
+  };
+
+  const handleTogglePlacementMode = () => {
+    setPlacementMode(!placementMode);
+    if (!placementMode) {
+      setSolution(null);
+      setResult(null);
+    }
+  };
+
+  const handleClearInitialPositions = () => {
+    setInitialPositions(new Map());
+    toast.info("Cleared all initial positions");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -143,7 +197,8 @@ const Index = () => {
             <Crown className="w-12 h-12 text-queen animate-pulse" />
           </div>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Visualize and compare AI algorithms solving the classic N-Queens problem
+            Visualize and compare AI algorithms solving the classic N-Queens
+            problem
           </p>
         </header>
 
@@ -158,6 +213,8 @@ const Index = () => {
               isPaused={isPaused}
               speed={speed}
               stepMode={stepMode}
+              placementMode={placementMode}
+              initialPositionsCount={initialPositions.size}
               onBoardSizeChange={setBoardSize}
               onAlgorithmChange={setAlgorithm}
               onSpeedChange={setSpeed}
@@ -165,6 +222,8 @@ const Index = () => {
               onPauseResume={handlePauseResume}
               onStep={handleStep}
               onToggleStepMode={() => setStepMode(!stepMode)}
+              onTogglePlacementMode={handleTogglePlacementMode}
+              onClearInitialPositions={handleClearInitialPositions}
             />
             <SolutionStats result={result} />
             <ExportControls
@@ -177,40 +236,60 @@ const Index = () => {
 
           {/* Right Panel - Chessboard */}
           <div className="lg:col-span-2">
-            <div className="bg-card rounded-xl shadow-[var(--shadow-elegant)] p-6 min-h-[600px] relative" id="chess-board">
+            <div
+              className="bg-card rounded-xl shadow-[var(--shadow-elegant)] p-6 min-h-[600px] relative"
+              id="chess-board"
+            >
               {isRunning && (
                 <div className="absolute top-4 right-4 bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold shadow-lg backdrop-blur-sm z-10">
                   Step: {stepCount}
                 </div>
               )}
-              <ChessBoard solution={solution} size={boardSize} />
+              <ChessBoard
+                solution={solution}
+                size={boardSize}
+                placementMode={placementMode}
+                initialPositions={initialPositions}
+                onSquareClick={handleSquareClick}
+              />
             </div>
           </div>
         </div>
 
         {/* History and Performance */}
         <div className="grid lg:grid-cols-2 gap-8 mt-8">
-          <SolutionHistory history={history} onSelectSolution={handleSelectHistory} />
+          <SolutionHistory
+            history={history}
+            onSelectSolution={handleSelectHistory}
+          />
           <PerformanceGraph history={history} />
         </div>
 
         {/* Info Section */}
         <footer className="mt-12 text-center">
           <div className="max-w-4xl mx-auto bg-card/50 backdrop-blur-sm rounded-lg p-6 border border-border">
-            <h2 className="text-2xl font-semibold mb-4">About the N-Queens Problem</h2>
+            <h2 className="text-2xl font-semibold mb-4">
+              About the N-Queens Problem
+            </h2>
             <div className="grid md:grid-cols-2 gap-6 text-left">
               <div>
-                <h3 className="font-semibold text-lg mb-2 text-primary">Hill Climbing</h3>
+                <h3 className="font-semibold text-lg mb-2 text-primary">
+                  Hill Climbing
+                </h3>
                 <p className="text-sm text-muted-foreground">
-                  A local search algorithm that starts with a random configuration and iteratively 
-                  moves to better neighboring states. Uses random restarts to escape local minima.
+                  A local search algorithm that starts with a random
+                  configuration and iteratively moves to better neighboring
+                  states. Uses random restarts to escape local minima.
                 </p>
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-2 text-primary">CSP Backtracking</h3>
+                <h3 className="font-semibold text-lg mb-2 text-primary">
+                  CSP Backtracking
+                </h3>
                 <p className="text-sm text-muted-foreground">
-                  A systematic search that places queens row by row, backtracking when constraints 
-                  are violated. Guarantees finding a solution if one exists.
+                  A systematic search that places queens row by row,
+                  backtracking when constraints are violated. Guarantees finding
+                  a solution if one exists.
                 </p>
               </div>
             </div>
