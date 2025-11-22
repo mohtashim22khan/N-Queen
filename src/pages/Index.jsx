@@ -18,10 +18,12 @@ const Index = () => {
   const [solution, setSolution] = useState(null);
   const [result, setResult] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [stepCount,setStepCount] = useState(0)
   const [isPaused, setIsPaused] = useState(false);
   const [speed, setSpeed] = useState(50);
   const [stepMode, setStepMode] = useState(false);
   const [history, setHistory] = useState([]);
+
   const controlsRef = useRef({ paused: false, speed: 50, stepMode: false });
   const stepResolveRef = useRef(null);
 
@@ -29,22 +31,27 @@ const Index = () => {
     setIsRunning(true);
     setIsPaused(false);
     setSolution(null);
+    setStepCount(0);
     setResult(null);
+
     controlsRef.current = { paused: false, speed, stepMode };
 
     try {
       let solverResult;
 
-      const stepCallback = async (state, shouldPause) => {
+      const stepCallback = async (state) => {
         setSolution([...state]);
-        
-        // Apply speed delay
-        const delay = 100 - speed;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        setStepCount(prev => prev+1)
 
-        // Handle pause/step mode
-        if (controlsRef.current.stepMode && shouldPause()) {
-          await new Promise((resolve) => {
+        if (!controlsRef.current.stepMode) {
+          const delay = 100 - speed;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        if (controlsRef.current.stepMode) {
+          setIsPaused(true);
+          controlsRef.current.paused = true;
+          await new Promise(resolve => {
             stepResolveRef.current = resolve;
           });
         } else {
@@ -55,15 +62,24 @@ const Index = () => {
       };
 
       if (algorithm === "hillClimbing") {
-        solverResult = await solveHillClimbing(boardSize, 100, 1000, stepCallback, controlsRef.current);
+        solverResult = await solveHillClimbing(
+          boardSize,
+          100,
+          1000,
+          stepCallback,
+          controlsRef.current
+        );
       } else {
-        solverResult = await solveCSPBacktracking(boardSize, stepCallback, controlsRef.current);
+        solverResult = await solveCSPBacktracking(
+          boardSize,
+          stepCallback,
+          controlsRef.current
+        );
       }
 
       setResult(solverResult);
       setSolution(solverResult.solution);
 
-      // Add to history
       const historyEntry = {
         id: Date.now().toString(),
         algorithm,
@@ -71,7 +87,8 @@ const Index = () => {
         result: solverResult,
         timestamp: new Date(),
       };
-      setHistory((prev) => [historyEntry, ...prev].slice(0, 20));
+
+      setHistory(prev => [historyEntry, ...prev].slice(0, 20));
 
       if (solverResult.success) {
         toast.success(`Solution found in ${solverResult.iterations} iterations!`, {
@@ -92,19 +109,16 @@ const Index = () => {
   };
 
   const handlePauseResume = () => {
-    if (stepMode) {
-      controlsRef.current.paused = !controlsRef.current.paused;
-      setIsPaused(!isPaused);
-    } else {
-      controlsRef.current.paused = !controlsRef.current.paused;
-      setIsPaused(!isPaused);
-    }
+    controlsRef.current.paused = !controlsRef.current.paused;
+    setIsPaused(!isPaused);
   };
 
   const handleStep = () => {
     if (stepResolveRef.current) {
       stepResolveRef.current();
       stepResolveRef.current = null;
+      setIsPaused(false);
+      controlsRef.current.paused = false;
     }
   };
 
@@ -163,7 +177,12 @@ const Index = () => {
 
           {/* Right Panel - Chessboard */}
           <div className="lg:col-span-2">
-            <div className="bg-card rounded-xl shadow-[var(--shadow-elegant)] p-6 min-h-[600px]" id="chess-board">
+            <div className="bg-card rounded-xl shadow-[var(--shadow-elegant)] p-6 min-h-[600px] relative" id="chess-board">
+              {isRunning && (
+                <div className="absolute top-4 right-4 bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold shadow-lg backdrop-blur-sm z-10">
+                  Step: {stepCount}
+                </div>
+              )}
               <ChessBoard solution={solution} size={boardSize} />
             </div>
           </div>
