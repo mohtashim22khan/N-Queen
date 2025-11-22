@@ -31,8 +31,8 @@ export function SolverControls({
           </div>
           <Slider
             id="board-size"
-            min={4}
-            max={12}
+            min={8}
+            max={16}
             step={1}
             value={[boardSize]}
             onValueChange={(values) => onBoardSizeChange(values[0])}
@@ -40,7 +40,7 @@ export function SolverControls({
             className="py-2"
           />
           <p className="text-sm text-muted-foreground">
-            Select the number of queens (4-12)
+            Select the number of queens (8-12)
           </p>
         </div>
 
