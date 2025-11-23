@@ -9,8 +9,12 @@ import { ExportControls } from "../components/ExportControls";
 import {
   solveHillClimbing,
   solveCSPBacktracking,
+  defaultMaxRestarts,
+  defaultMaxStepsPerRun
 } from "../utils/nQueensSolvers";
 import { toast } from "sonner";
+
+
 
 const Index = () => {
   const [boardSize, setBoardSize] = useState(8);
@@ -22,6 +26,8 @@ const Index = () => {
   const [speed, setSpeed] = useState(50);
   const [stepMode, setStepMode] = useState(false);
   const [stepCount, setStepCount] = useState(0);
+  // Track live stats for display if needed
+  const [liveStats, setLiveStats] = useState({ restarts: 0, backtracks: 0 });
   const [placementMode, setPlacementMode] = useState(false);
   const [initialPositions, setInitialPositions] = useState(new Map());
   const [history, setHistory] = useState([]);
@@ -34,14 +40,20 @@ const Index = () => {
     setSolution(null);
     setResult(null);
     setStepCount(0);
+    setLiveStats({ restarts: 0, backtracks: 0 });
     controlsRef.current = { paused: false, speed, stepMode };
 
     try {
       let solverResult;
 
-      const stepCallback = async (state, shouldPause) => {
+      // Accepted stats param to update live counters
+      const stepCallback = async (state, stats) => {
         setSolution([...state]);
         setStepCount((prev) => prev + 1);
+
+        if (stats) {
+          setLiveStats((prev) => ({ ...prev, ...stats }));
+        }
 
         // Apply speed delay (skip in step mode)
         if (!controlsRef.current.stepMode) {
@@ -67,8 +79,8 @@ const Index = () => {
       if (algorithm === "hillClimbing") {
         solverResult = await solveHillClimbing(
           boardSize,
-          100,
-          1000,
+          defaultMaxRestarts,
+          defaultMaxStepsPerRun,
           stepCallback,
           controlsRef.current
         );
@@ -95,10 +107,17 @@ const Index = () => {
       setHistory((prev) => [historyEntry, ...prev].slice(0, 20));
 
       if (solverResult.success) {
+        // --- CUSTOM SUCCESS SCREEN LOGIC ---
+        const details =
+          algorithm === "hillClimbing"
+            ? `Restarts: ${solverResult.restarts}`
+            : `Backtracks: ${solverResult.backtracks}`;
+
         toast.success(
           `Solution found in ${solverResult.iterations} iterations!`,
           {
-            description: `Completed in ${solverResult.time.toFixed(3)} seconds`,
+            description: `${details} • Time: ${solverResult.time.toFixed(3)}s`,
+            duration: 10000, // Display for 5 seconds
           }
         );
       } else {
@@ -137,7 +156,6 @@ const Index = () => {
     toast.info("Loaded solution from history");
   };
 
-  // Updated function based on the diff image
   const handleSquareClick = (row, col) => {
     if (!placementMode) return;
 
@@ -226,12 +244,7 @@ const Index = () => {
               onClearInitialPositions={handleClearInitialPositions}
             />
             <SolutionStats result={result} />
-            <ExportControls
-              solution={solution}
-              boardSize={boardSize}
-              result={result}
-              algorithm={algorithm}
-            />
+
           </div>
 
           {/* Right Panel - Chessboard */}
@@ -241,8 +254,18 @@ const Index = () => {
               id="chess-board"
             >
               {isRunning && (
-                <div className="absolute top-4 right-4 bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold shadow-lg backdrop-blur-sm z-10">
-                  Step: {stepCount}
+                <div className="absolute top-4 right-4 bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-semibold shadow-lg backdrop-blur-sm z-10 flex flex-col gap-1 min-w-[140px]">
+                  <div>Step: {stepCount}</div>
+                  {algorithm === "hillClimbing" && (
+                    <div className="text-sm opacity-90">
+                      Restarts: {liveStats.restarts}
+                    </div>
+                  )}
+                  {algorithm === "csp" && (
+                    <div className="text-sm opacity-90">
+                      Backtracks: {liveStats.backtracks}
+                    </div>
+                  )}
                 </div>
               )}
               <ChessBoard

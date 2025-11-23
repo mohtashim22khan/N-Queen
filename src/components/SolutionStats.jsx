@@ -1,60 +1,86 @@
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { CheckCircle2, Clock, Hash, XCircle } from "lucide-react";
+import React from "react";
+import { CheckCircle2, XCircle, Clock, Hash, RotateCcw, ArrowLeft } from "lucide-react";
 
-export function SolutionStats({ result }) {
-  if (!result) {
-    return null;
-  }
+export const SolutionStats = ({ result }) => {
+  if (!result) return null;
 
   return (
-    <Card className="shadow-[var(--shadow-soft)]">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {result.success ? (
-            <>
-              <CheckCircle2 className="text-green-500" />
-              Solution Found!
-            </>
-          ) : (
-            <>
-              <XCircle className="text-destructive" />
+    <div className="bg-card rounded-xl shadow-[var(--shadow-elegant)] p-6 animate-fade-in border border-border/50">
+      <div className="flex items-center gap-3 mb-6">
+        {result.success ? (
+          <>
+            <CheckCircle2 className="w-8 h-8 text-green-500" />
+            <h3 className="text-xl font-semibold text-green-500">
+              Solution Found
+            </h3>
+          </>
+        ) : (
+          <>
+            <XCircle className="w-8 h-8 text-destructive" />
+            <h3 className="text-xl font-semibold text-destructive">
               No Solution Found
-            </>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-          <div className="flex items-center gap-2">
-            <Hash className="w-5 h-5 text-primary" />
-            <span className="font-medium">Iterations</span>
+            </h3>
+          </>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        {/* Iterations Row */}
+        <div className="bg-secondary/30 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-background rounded-md">
+              <Hash className="w-4 h-4 text-primary" />
+            </div>
+            <span className="font-medium text-muted-foreground">Iterations</span>
           </div>
-          <span className="text-2xl font-bold text-primary">
+          <span className="text-xl font-bold tabular-nums text-foreground">
             {result.iterations.toLocaleString()}
           </span>
         </div>
 
-        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary" />
-            <span className="font-medium">Time</span>
+        {/* Restarts Row - Only shows if 'restarts' exists in result (Hill Climbing) */}
+        {result.restarts !== undefined && (
+          <div className="bg-secondary/30 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-background rounded-md">
+                <RotateCcw className="w-4 h-4 text-orange-500" />
+              </div>
+              <span className="font-medium text-muted-foreground">Restarts</span>
+            </div>
+            <span className="text-xl font-bold tabular-nums text-foreground">
+              {result.restarts}
+            </span>
           </div>
-          <span className="text-2xl font-bold text-primary">
+        )}
+
+        {/* Backtracks Row - Only shows if 'backtracks' exists in result (CSP) */}
+        {result.backtracks !== undefined && (
+          <div className="bg-secondary/30 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-background rounded-md">
+                <ArrowLeft className="w-4 h-4 text-blue-500" />
+              </div>
+              <span className="font-medium text-muted-foreground">Backtracks</span>
+            </div>
+            <span className="text-xl font-bold tabular-nums text-foreground">
+              {result.backtracks.toLocaleString()}
+            </span>
+          </div>
+        )}
+
+        {/* Time Row */}
+        <div className="bg-secondary/30 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-background rounded-md">
+              <Clock className="w-4 h-4 text-primary" />
+            </div>
+            <span className="font-medium text-muted-foreground">Time</span>
+          </div>
+          <span className="text-xl font-bold tabular-nums text-foreground">
             {result.time.toFixed(3)}s
           </span>
         </div>
-
-        {result.solution && (
-          <div className="p-3 bg-gradient-to-br from-muted to-accent rounded-lg">
-            <p className="text-xs font-mono text-muted-foreground mb-1">
-              Solution Vector:
-            </p>
-            <p className="text-sm font-mono break-all">
-              [{result.solution.join(", ")}]
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
-}
+};
