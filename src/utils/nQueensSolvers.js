@@ -1,8 +1,8 @@
-// default values for maxrestarts and maxstepsperrun
+// initializing values for maxrestarts and maxstepsperrun
 export const defaultMaxRestarts = 100;
 export const defaultMaxStepsPerRun = 1000;
 
-// --- HILL CLIMBING HELPERS ---
+// this function helps in climbing hill 
 
 function calculateAttackingPairs(state) {
   const n = state.length;
@@ -23,7 +23,7 @@ function generateRandomBoard(n) {
   return Array.from({ length: n }, () => Math.floor(Math.random() * n));
 }
 
-// --- HILL CLIMBING ALGORITHM ---
+// this function is the implementation of hill climbing algorithm
 
 export async function solveHillClimbing(
   n,
@@ -108,7 +108,7 @@ export async function solveHillClimbing(
   };
 }
 
-// --- CSP / BACKTRACKING HELPERS ---
+// this function helps in performing backtracking in CSP  
 
 function isSafe(board, row, col) {
   for (let r = 0; r < row; r++) {
@@ -119,7 +119,7 @@ function isSafe(board, row, col) {
   return true;
 }
 
-// 1. The Recursive Helper (Internal use only)
+// this is the recursive backtracking function 
 async function solveCSPRecursive(
   board,
   row,
@@ -131,12 +131,12 @@ async function solveCSPRecursive(
 ) {
   stats.iterations++;
 
-  // Base case: All queens placed
+  // Base case ----> All queens placed
   if (row === n) {
     return true;
   }
 
-  // Handle fixed positions (User defined)
+  // Handle fixed positions (it is defined by User)
   if (initialPositions && initialPositions.has(row)) {
     const fixedCol = initialPositions.get(row);
 
@@ -170,18 +170,18 @@ async function solveCSPRecursive(
     return result;
   }
 
-  // --- RANDOMIZATION LOGIC ---
-  // Generate [0, 1, ... n-1]
+  // here we are implementing randomization logic
+  // here we are generating an array or (in python we can say list) of columns from 0 to n-1
   let columns = Array.from({ length: n }, (_, i) => i);
 
-  // Shuffle columns so we try them in random order
+  // in this for loop we are shuffling columns so we try them in random order
   for (let i = columns.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [columns[i], columns[j]] = [columns[j], columns[i]];
   }
   // ---------------------------
 
-  // Iterate through shuffled columns
+  // here we are iterating through shuffled columns
   for (const col of columns) {
     if (isSafe(board, row, col)) {
       board.push(col);
@@ -217,8 +217,8 @@ async function solveCSPRecursive(
   return false;
 }
 
-// 2. The Main Exported Function (The Wrapper)
-// This matches the signature called in Index.jsx
+// it is the main function that we are exporting
+// it matches the signature called in Index.jsx
 export async function solveCSPBacktracking(
   n,
   onStep,
@@ -235,13 +235,11 @@ export async function solveCSPBacktracking(
   // Pre-fill board with any fixed positions starting from row 0
   // (Only if they are contiguous from the start, otherwise recursion handles them)
   // Ideally, we just let recursion handle it, but we can do a quick check here.
-  
   // Validate start (check if initial positions conflict with each other)
-  // ... (Optional validation logic could go here)
-
+ 
   let hasSolution = false;
   
-  // Call the recursive helper
+  // here we are calling recursive function we created above for help in backtracking
   hasSolution = await solveCSPRecursive(
     board,
     0, // Start at row 0

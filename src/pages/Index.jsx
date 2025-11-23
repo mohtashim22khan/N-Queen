@@ -107,7 +107,7 @@ const Index = () => {
       setHistory((prev) => [historyEntry, ...prev].slice(0, 20));
 
       if (solverResult.success) {
-        // --- CUSTOM SUCCESS SCREEN LOGIC ---
+        // CUSTOM SUCCESS SCREEN LOGIC 
         const details =
           algorithm === "hillClimbing"
             ? `Restarts: ${solverResult.restarts}`
@@ -222,7 +222,7 @@ const Index = () => {
 
         {/* Main Content */}
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Panel - Controls */}
+          {/* here we have controls */}
           <div className="lg:col-span-1 space-y-6">
             <SolverControls
               boardSize={boardSize}
@@ -247,7 +247,7 @@ const Index = () => {
 
           </div>
 
-          {/* Right Panel - Chessboard */}
+          {/* Chessboard */}
           <div className="lg:col-span-2">
             <div
               className="bg-card rounded-xl shadow-[var(--shadow-elegant)] p-6 min-h-[600px] relative"
@@ -288,7 +288,7 @@ const Index = () => {
           <PerformanceGraph history={history} />
         </div>
 
-        {/* Info Section */}
+        {/* info section */}
         <footer className="mt-12 text-center">
           <div className="max-w-4xl mx-auto bg-card/50 backdrop-blur-sm rounded-lg p-6 border border-border">
             <h2 className="text-2xl font-semibold mb-4">
