@@ -16,5 +16,4 @@ timeout /t 5 /nobreak >nul
 echo Opening app in browser...
 start "" "http://localhost:5173"
 
-echo.
-echo All done. You can close this window.
+
