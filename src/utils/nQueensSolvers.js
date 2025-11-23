@@ -1,9 +1,9 @@
-
-//default values for maxrestarts and maxstepsperrun
+// default values for maxrestarts and maxstepsperrun
 export const defaultMaxRestarts = 100;
 export const defaultMaxStepsPerRun = 1000;
 
-// Calculate attacking pairs for Hill Climbing
+// --- HILL CLIMBING HELPERS ---
+
 function calculateAttackingPairs(state) {
   const n = state.length;
   let attacks = 0;
@@ -19,12 +19,12 @@ function calculateAttackingPairs(state) {
   return attacks;
 }
 
-// Generate random board for Hill Climbing
 function generateRandomBoard(n) {
   return Array.from({ length: n }, () => Math.floor(Math.random() * n));
 }
 
-// Hill Climbing with Random Restarts
+// --- HILL CLIMBING ALGORITHM ---
+
 export async function solveHillClimbing(
   n,
   maxRestarts = defaultMaxRestarts,
@@ -39,7 +39,6 @@ export async function solveHillClimbing(
     let currentState = generateRandomBoard(n);
     let currentAttacks = calculateAttackingPairs(currentState);
 
-    // Pass restart info to onStep
     if (onStep) {
       await onStep(
         [...currentState],
@@ -56,7 +55,7 @@ export async function solveHillClimbing(
         return {
           solution: currentState,
           iterations: totalSteps,
-          restarts: restart, // Return final restarts
+          restarts: restart,
           time: (endTime - startTime) / 1000,
           success: true,
         };
@@ -83,7 +82,7 @@ export async function solveHillClimbing(
       }
 
       if (minNeighborAttacks >= currentAttacks) {
-        break; // Local minimum, restart
+        break; // Local minimum
       }
 
       currentState = bestNeighbor;
@@ -109,18 +108,18 @@ export async function solveHillClimbing(
   };
 }
 
-// Check if placing a queen is safe
+// --- CSP / BACKTRACKING HELPERS ---
+
 function isSafe(board, row, col) {
   for (let r = 0; r < row; r++) {
     const existingCol = board[r];
-    // Check Column Conflict
     if (existingCol === col) return false;
-    // Check Diagonal Conflict
     if (Math.abs(existingCol - col) === Math.abs(r - row)) return false;
   }
   return true;
 }
 
+// 1. The Recursive Helper (Internal use only)
 async function solveCSPRecursive(
   board,
   row,
@@ -132,11 +131,12 @@ async function solveCSPRecursive(
 ) {
   stats.iterations++;
 
+  // Base case: All queens placed
   if (row === n) {
-    return true; // Solution found
+    return true;
   }
 
-  // Handle rows that have pre-placed queens
+  // Handle fixed positions (User defined)
   if (initialPositions && initialPositions.has(row)) {
     const fixedCol = initialPositions.get(row);
 
@@ -167,11 +167,22 @@ async function solveCSPRecursive(
     if (!result) {
       board.pop();
     }
-
     return result;
   }
 
-  for (let col = 0; col < n; col++) {
+  // --- RANDOMIZATION LOGIC ---
+  // Generate [0, 1, ... n-1]
+  let columns = Array.from({ length: n }, (_, i) => i);
+
+  // Shuffle columns so we try them in random order
+  for (let i = columns.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [columns[i], columns[j]] = [columns[j], columns[i]];
+  }
+  // ---------------------------
+
+  // Iterate through shuffled columns
+  for (const col of columns) {
     if (isSafe(board, row, col)) {
       board.push(col);
 
@@ -197,15 +208,17 @@ async function solveCSPRecursive(
         return true;
       }
 
+      // Backtrack
       board.pop();
-      stats.backtracks++; // Increment backtrack counter
+      stats.backtracks++;
     }
   }
 
   return false;
 }
 
-// CSP Backtracking
+// 2. The Main Exported Function (The Wrapper)
+// This matches the signature called in Index.jsx
 export async function solveCSPBacktracking(
   n,
   onStep,
@@ -213,46 +226,38 @@ export async function solveCSPBacktracking(
   initialPositions
 ) {
   const startTime = performance.now();
+  
+  // Initialize the state objects here
   const board = [];
-  const stats = { iterations: 0, backtracks: 0 }; // Initialize backtracks
-
+  const stats = { iterations: 0, backtracks: 0 };
   const initialPosMap = initialPositions || new Map();
 
-  for (let row = 0; row < n; row++) {
-    if (initialPosMap.has(row)) {
-      board.push(initialPosMap.get(row));
-    } else {
-      break;
-    }
-  }
-
-  let isValidStart = true;
-  for (let r = 0; r < board.length; r++) {
-    if (!isSafe(board, r, board[r])) {
-      isValidStart = false;
-      break;
-    }
-  }
+  // Pre-fill board with any fixed positions starting from row 0
+  // (Only if they are contiguous from the start, otherwise recursion handles them)
+  // Ideally, we just let recursion handle it, but we can do a quick check here.
+  
+  // Validate start (check if initial positions conflict with each other)
+  // ... (Optional validation logic could go here)
 
   let hasSolution = false;
-  if (isValidStart) {
-    hasSolution = await solveCSPRecursive(
-      board,
-      board.length,
-      n,
-      stats,
-      onStep,
-      controls,
-      initialPosMap
-    );
-  }
+  
+  // Call the recursive helper
+  hasSolution = await solveCSPRecursive(
+    board,
+    0, // Start at row 0
+    n,
+    stats,
+    onStep,
+    controls,
+    initialPosMap
+  );
 
   const endTime = performance.now();
 
   return {
     solution: hasSolution ? board : null,
     iterations: stats.iterations,
-    backtracks: stats.backtracks, // Return total backtracks
+    backtracks: stats.backtracks,
     time: (endTime - startTime) / 1000,
     success: hasSolution,
   };
